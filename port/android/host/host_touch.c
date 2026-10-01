@@ -18,7 +18,7 @@ void host_touch_rumble(unsigned int low, unsigned int high)
 {
     unsigned int strength = low > high ? low : high;
     pthread_mutex_lock(&touch_lock);
-    rumble_amplitude = strength ? 1 + (strength * 254u / 65535u) : 0;
+    rumble_amplitude = strength ? 64 + (strength * 191u / 65535u) : 0;
     clock_gettime(CLOCK_MONOTONIC, &rumble_time);
     pthread_mutex_unlock(&touch_lock);
 }

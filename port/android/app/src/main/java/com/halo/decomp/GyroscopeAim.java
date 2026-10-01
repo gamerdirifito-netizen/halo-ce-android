@@ -26,7 +26,7 @@ final class GyroscopeAim {
         boolean valid = previousTime != 0 && rotation == previousRotation && dt > 0 && dt <= 0.1f;
         if (valid) {
             delta[0] = -(screenY+previousY)*0.5f*dt;
-            delta[1] = (screenX+previousX)*0.5f*dt;
+            delta[1] = -(screenX+previousX)*0.5f*dt;
         }
         previousTime = time; previousRotation = rotation;
         previousX = screenX; previousY = screenY;

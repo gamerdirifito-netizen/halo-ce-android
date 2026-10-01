@@ -48,17 +48,21 @@ Touch inputs are released when you hide the controls or leave the app.
 
 ### Options and General
 
-Tap the circular, white-outline **Options** button. The menu contains
+The main menu build label displays **FulGer** regardless of the imported disc
+version. Tap the circular, white-outline **Options** button. The menu contains
 **General**, **Edit buttons layout**, **Look sensitivity** and **Cheats**.
 
 **General** includes:
 
 - **Rumble**: enabled by default. The smartphone vibrates when the game sends
-  player 1's controller rumble, even without a connected controller. Vibration
-  intensity follows the motors on phones with amplitude control. Turning it
+  player 1's rumble effects, even without a connected controller or when the
+  imported Xbox profile has controller vibration disabled. Vibration
+  uses Android's game audio attributes and a perceptible minimum amplitude;
+  stronger motor effects increase intensity on phones with amplitude control. Turning it
   off or leaving the app stops the phone vibration. Controller rumble is retained.
 - **Gyroscope aim (Experimental)**: disabled by default. Rotate the phone to
-  adjust yaw and pitch alongside touch aiming. Both landscape orientations work;
+  adjust yaw and pitch alongside touch aiming. Vertical tilt follows the phone
+  without inverted up/down movement. Both landscape orientations work;
   motion is suspended in Options, the layout editor and while the app is unfocused.
   It uses the look sensitivity setting. The toggle is unavailable without a gyroscope.
 - **Hide or add buttons**: show/hide individual controls, add buttons or duplicate
@@ -66,7 +70,7 @@ Tap the circular, white-outline **Options** button. The menu contains
   removes copies. Each duplicate keeps its game action and has its own position
   and size. The movement stick can be hidden or restored.
 - **Edit buttons size**: every original control and duplicate appears in a list,
-  including hidden controls, with **âˆ’**, **+** and a percentage value. Sizes
+  including hidden controls, with **Ã¢Ë†â€™**, **+** and a percentage value. Sizes
   range from 50% to 200% in 10-point steps. The drawing and touch area resize
   together; the movement stick's range and thumb resize with it.
 

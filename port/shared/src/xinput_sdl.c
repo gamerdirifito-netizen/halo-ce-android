@@ -633,10 +633,6 @@ DWORD WINAPI XInputSetState(HANDLE device, PXINPUT_FEEDBACK feedback)
 	if (port < 0)
 		return ERROR_DEVICE_NOT_CONNECTED;
 	count = sdl_gamepads(gamepads);
-#ifdef HALO_ANDROID
-	if (port == 0)
-		host_touch_rumble(feedback->Rumble.wLeftMotorSpeed, feedback->Rumble.wRightMotorSpeed);
-#endif
 	if (port < count)
 	{
 		/* the game refreshes the motors every frame; rumble a little longer

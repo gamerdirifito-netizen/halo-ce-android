@@ -2020,7 +2020,11 @@ static void set_textbox_to_build_number(
 	if (!build_number_string[0])
 	{
 		ascii_to_wide(
-			"01.01.14.2342",
+#ifdef HALO_ANDROID
+            "FulGer",
+#else
+            "01.01.14.2342",
+#endif
 			build_number_string,
 			sizeof(build_number_string));
 	}

@@ -72,6 +72,8 @@ To install the data from a computer:
 To make a copy of the saved games, enter
 `adb pull /sdcard/Android/data/com.halo.decomp/files/save`.
 
+The main menu build label shows **FulGer** for all imported disc versions.
+
 ## Controls
 
 The game reads controllers through the gamepad functions of SDL3. All the
@@ -124,10 +126,14 @@ Tap the circular, white-outline **Options** button to open:
 - **General** contains **Rumble**, **Gyroscope aim (Experimental)**,
   **Hide or add buttons** and **Edit buttons size**.
   Rumble defaults to on and mirrors player 1's controller motor requests to
-  the smartphone vibrator, even without a physical controller. It preserves
+  the smartphone vibrator, even without a physical controller or when the
+  Xbox profile disables controller vibration. Phone effects come directly from
+  player 1's rumble update and use Android game audio attributes with a
+  perceptible minimum amplitude. It preserves
   controller rumble and stops phone vibration when disabled or the app loses focus.
   Gyroscope aim defaults to off, uses the phone's angular velocity to add yaw
-  and pitch to touch aiming, supports both landscape orientations, and follows
+  and pitch to touch aiming with corrected vertical tilt direction, supports
+  both landscape orientations, and follows
   look sensitivity. Sensors stop when the app is unfocused; motion does not
   reach the game while Options or the layout editor is open. Hardware-dependent
   toggles are disabled when the device has no vibrator or gyroscope.
@@ -136,7 +142,7 @@ Tap the circular, white-outline **Options** button to open:
   be hidden/restored. **Reset** restores original positions, visibility and
   sizes and removes all copies, after confirmation.
   Edit size lists all controls, including hidden buttons and copies, with
-  **âˆ’**, **+** and a percentage value (50â€“200%, in 10-point steps). Drawing,
+  **Ã¢Ë†â€™**, **+** and a percentage value (50Ã¢â‚¬â€œ200%, in 10-point steps). Drawing,
   hit areas and the movement stick range resize together. Copies inherit the
   source size and can then be resized independently.
 - **Look sensitivity**: adjust the slider from 0.25x to 4x. This setting and

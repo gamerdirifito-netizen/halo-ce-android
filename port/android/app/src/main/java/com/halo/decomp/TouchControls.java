@@ -1,6 +1,7 @@
 package com.halo.decomp;
 
 import android.app.AlertDialog;
+import android.media.AudioAttributes;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -76,6 +77,8 @@ public final class TouchControls extends View implements SensorEventListener {
     private boolean deviceInputActive, gyroRegistered;
     private int lastAmplitude;
     private long lastVibration;
+    private final AudioAttributes rumbleAttributes = new AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
     private static native int nativeRumble();
     private final Runnable rumblePoll = new Runnable() {
         public void run() {
@@ -86,7 +89,7 @@ public final class TouchControls extends View implements SensorEventListener {
                 else if (amplitude != lastAmplitude || SystemClock.uptimeMillis()-lastVibration >= 70) {
                     try {
                         vibrator.vibrate(VibrationEffect.createOneShot(110,
-                            vibrator.hasAmplitudeControl() ? amplitude : VibrationEffect.DEFAULT_AMPLITUDE));
+                            vibrator.hasAmplitudeControl() ? amplitude : VibrationEffect.DEFAULT_AMPLITUDE), rumbleAttributes);
                         lastAmplitude = amplitude; lastVibration = SystemClock.uptimeMillis();
                     } catch (RuntimeException e) { cancelRumble(); }
                 }

@@ -20,7 +20,10 @@ public final class GyroscopeAimTest {
         aim.reset();
         check(!aim.sample(2100000000L, 0, 1, 1, delta), "Reset releases pending gyro motion");
         aim.sample(2120000000L, 0, 1, 1, delta);
-        near(delta[1], 0.02f, "Landscape pitch uses the display horizontal axis");
+        near(delta[1], -0.02f, "Landscape pitch must follow phone tilt rather than invert it");
+        aim.reset(); aim.sample(2200000000L, 0, 1, 3, delta);
+        aim.sample(2220000000L, 0, 1, 3, delta);
+        near(delta[1], 0.02f, "Reverse landscape pitch must follow the reversed display axis");
         aim.reset(); aim.sample(3000000000L, 0.005f, -0.005f, 0, delta);
         check(!aim.sample(3020000000L, 0.005f, -0.005f, 0, delta), "Small stationary noise must not drift");
         check(!aim.sample(3040000000L, Float.NaN, 1, 0, delta), "Invalid sensor values are rejected");
