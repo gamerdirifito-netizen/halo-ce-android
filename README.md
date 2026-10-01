@@ -148,12 +148,48 @@ links, and remains compatible with the upstream networking protocol.
 Official fork builds check releases of **theLlamaNet/halo-ce-android**.
 Local builds without a build number do not check for updates.
 
-GitHub Actions builds Android debug and release packages. Successful builds
-of `main` publish a release. Configure the repository's
+GitHub Actions builds Android debug and release packages and keeps the APK
+artifacts for 14 days. Tags and GitHub releases are published manually.
+Configure the repository's
 `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets to keep a
 stable signing key across builds (key alias `halo`). Without them, each CI
 runner uses its own debug key, so its APK may not install over an earlier
 build. Keep signing keys and game data out of the repository.
+
+## Automatic upstream synchronization
+
+[Sync upstream](https://github.com/theLlamaNet/halo-ce-android/actions/workflows/sync-upstream.yml)
+checks `cybersecurity/halo-ce-universal`'s `main` every 30 minutes and can also
+be started with **Run workflow**. GitHub may delay scheduled runs. Each run
+merges all new upstream commits into a temporary `codex/upstream-sync-*`
+branch, preserving the Android changes and the original commit history.
+The exact candidate must pass the sync regression tests, touch/gyro tests,
+and Android debug and release builds before the bot advances this fork's
+`main`. If `main` changes during validation, the next run starts from it.
+
+The policy in [upstream-sync-policy.json](.github/upstream-sync-policy.json)
+preserves this fork's workflows, README and sync helper, keeps removed
+desktop ports out, and recognizes the `port/linux` to `port/shared` move.
+Other code uses normal three-way merging. An unresolved source conflict or
+failed build stops the update and leaves `main` unchanged. The Actions run
+contains a JSON report; failed build candidates remain available for
+inspection. Resolve source conflicts on the fork and run the workflow
+again; incompatible source changes cannot safely be merged automatically.
+
+Keep Actions enabled and allow the workflow token to write repository
+contents. Branch protection must allow the bot's normal fast-forward push
+to `main`; the workflow never force-pushes. No upstream tags are copied,
+and neither workflow creates tags or releases.
+
+For a manual release, download the chosen build's APK artifacts and use a
+`build-<number>` tag on that exact commit. The number is the full-history
+commit count (`git rev-list --count <commit>`), or the `build_number`
+override supplied to **Android build / Run workflow**. Use a number greater
+than previously published versions. To support the in-app updater, attach
+`halo-android-debug.zip` and `halo-android-release.zip`, each containing its
+APK and notices at the ZIP root. Create these ZIPs without compression
+(stored entries) for compatibility with older updaters; mark the release
+as latest. Downloaded Actions artifact ZIPs should be repackaged this way.
 
 ## Known limitations
 

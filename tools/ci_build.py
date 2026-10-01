@@ -25,8 +25,19 @@ def main():
         command.append("--pgo=off")
     if os.environ.get("CI_COMPILER_LAUNCHER"):
         command += ["--compiler-launcher", os.environ["CI_COMPILER_LAUNCHER"]]
-    if os.environ.get("GITHUB_REF") == "refs/heads/main" and os.environ.get("GITHUB_RUN_NUMBER", "").isdigit():
-        os.environ["HALO_BUILD_NUMBER"] = os.environ["GITHUB_RUN_NUMBER"]
+    # Stable across the build and sync workflows; a fast-forward main only
+    # gains commits. Owners may override this for manually published releases.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        number = os.environ.get("HALO_BUILD_NUMBER", "")
+        if not number:
+            number = subprocess.check_output(["git", "rev-list", "--count", "HEAD"], cwd=ROOT, text=True).strip()
+        if not number.isdigit() or not 1 <= int(number) <= 2100000000:
+            raise SystemExit("HALO_BUILD_NUMBER must be between 1 and 2100000000")
+        os.environ["HALO_BUILD_NUMBER"] = number
+        print("Android version code:", number, flush=True)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                summary.write(f"Android {args.config}: version code **{number}**; manual release tag `build-{number}`.\n")
     run(command)
     run(["ninja", "android"])
     if os.name == "nt":

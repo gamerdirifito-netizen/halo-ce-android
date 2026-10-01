@@ -1,0 +1,25 @@
+{
+  "protected": [
+    ".github/",
+    "README.md",
+    "tools/sync_upstream.py",
+    "tools/tests/test_sync_upstream.py"
+  ],
+  "removed": [
+    "port/windows/",
+    "port/linux/",
+    "port/third_party/mbedtls/",
+    "tools/linux_build.py",
+    "tools/linux_link_check.py",
+    "tools/windows_build.py",
+    "tools/pgo_train.py",
+    "tools/system_link_bots.py",
+    "tools/test_linux_port.py",
+    "pgo/halo_windows.profdata"
+  ],
+  "text_relocations": {
+    "port/linux/": "port/shared/",
+    "LINUX_DIR": "SHARED_DIR",
+    "tools/linux_msvc_semantics.py": "tools/msvc_semantics.py"
+  }
+}

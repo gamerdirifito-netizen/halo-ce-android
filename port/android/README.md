@@ -212,6 +212,9 @@ drop it, and when it hosts, its players leave.
 
 The app from GitHub Actions checks releases of
 [theLlamaNet/halo-ce-android](https://github.com/theLlamaNet/halo-ce-android).
+Upstream commits are synchronized automatically after tests and builds;
+GitHub tags and releases are created manually. See the root README's
+[synchronization and manual release instructions](../../README.md#automatic-upstream-synchronization).
 When a newer build is found and you select "Yes":
 
 1. The app downloads the new version.

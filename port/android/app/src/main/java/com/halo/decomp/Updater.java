@@ -30,7 +30,7 @@ import java.util.zip.ZipInputStream;
  * The app's self-updater, as the desktop games' (port/shared/src/updater.c).
  *
  * A build of the main branch made by GitHub Actions knows its build number
- * (BuildConfig.HALO_BUILD_NUMBER, the workflow's run number, which names its
+ * (BuildConfig.HALO_BUILD_NUMBER, the CI version code, which names its
  * release: build-number); other builds have none and never look. When
  * update.auto in config.toml is true (the default), the game asks GitHub for
  * the latest release when it starts, on a thread of its own, and if it is
