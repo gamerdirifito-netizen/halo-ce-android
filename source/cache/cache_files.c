@@ -325,7 +325,7 @@ char const *cache_files_map_directory(
 void scenario_tags_unload(
 	void)
 {
-	/* port: the high-res HUD forgets this map's bitmaps (port/linux/game/hud_hires_tags.c) */
+	/* port: the high-res HUD forgets this map's bitmaps (port/shared/game/hud_hires_tags.c) */
 	{
 		extern void hud_hires_tags_unloaded(void);
 
@@ -592,7 +592,7 @@ boolean cache_file_header_verify(
 multiplayer with the others; a map of another build may differ in what
 machines send each other, so its players cannot open the multiplayer menu
 (ui_widget.c, ui_widget_launch_widget). A PAL build's maps are played as the
-NTSC maps are (port/linux/game/pal_tags.c) */
+NTSC maps are (port/shared/game/pal_tags.c) */
 static struct
 {
 	char const *build;
@@ -799,13 +799,13 @@ long scenario_tags_load(
 			global_tag_instances = cache_file_globals.tag_header->tag_instances;
 			tags_header_register_vertex_and_index_buffers(cache_file_globals.tag_header);
 			cache_file_globals.tags_loaded = TRUE;
-			/* port: a PAL map played as the NTSC maps are (port/linux/game/pal_tags.c) */
+			/* port: a PAL map played as the NTSC maps are (port/shared/game/pal_tags.c) */
 			{
 				extern void pal_tags_loaded(char const *build);
 
 				pal_tags_loaded(cache_file_globals.header.build);
 			}
-			/* port: the bitmaps the high-res HUD stands for (port/linux/game/hud_hires_tags.c) */
+			/* port: the bitmaps the high-res HUD stands for (port/shared/game/hud_hires_tags.c) */
 			{
 				extern void hud_hires_tags_loaded(void);
 
@@ -923,7 +923,7 @@ void *tag_get(
 
 /* whether the index is a loaded tag of the group (or a group it inherits
 from): the distributed netcode names tags another machine sent
-(port/linux/game/network_damage.c), which tag_get would only assert on */
+(port/shared/game/network_damage.c), which tag_get would only assert on */
 boolean tag_index_is_group(
 	long tag_index,
 	long group_tag)

@@ -9,13 +9,12 @@ The game shows its graphics with OpenGL ES 3. It plays sound through SDL3
 5 DualSense on Bluetooth. The app needs Android 9 (API 28) or later. It
 operates on 64-bit-only devices, for example the Pixel 9 Pro XL.
 
-The Android build uses the platform layer of the Linux build
-(`port/linux/src`). Refer to [port/linux/README.md](../linux/README.md).
+The Android build uses the shared engine layer in `port/shared`.
+See [shared engine settings](../shared/README.md#settings).
 
 ## Requirements
 
-You do not need the Xbox SDK. You need the tools of the Linux build (Python,
-ninja) and these items:
+You do not need the Xbox SDK. Install Python, ninja and these items:
 
 - A clang with the `arm64_32` target, for example the clang of the system.
   The option `--android-guest-cc` of `configure.py` selects a different
@@ -27,6 +26,11 @@ ninja) and these items:
 - A network connection for the first build. `configure.py` downloads musl
   1.2.5 and SDL 3.4.16 to `build/android/third_party`. Gradle downloads the
   Android Gradle Plugin.
+
+On Windows, install Git for Windows as well. Its Bash runs the native
+build commands; the Windows NDK's clang builds both the guest and host.
+Set `ANDROID_HOME` to the SDK folder, including NDK and Android API 35.
+The local Gradle cache and Android user files are kept under `build/`.
 
 ## Build and install the app
 
@@ -92,8 +96,30 @@ with the positions on the Xbox controller:
 | Create | back | |
 
 The controller gets the rumble. The back gesture of Android is the B
-button. A Bluetooth or USB keyboard operates as on Linux. The screen does
-not accept touch input.
+button. Bluetooth and USB keyboards also work. The screen
+accepts multi-touch input through an on-screen controller for player 1.
+The left stick moves and the right stick looks; both return to the center
+when released. The action buttons can be held while moving and looking.
+Use A to accept menu items and B to go back, and the on-screen D-pad to
+navigate. Fire, grenades, reload/action, melee, weapon switching, crouch,
+zoom, flashlight, grenade switching and pause have their own buttons.
+Touch **Hide** at the top to hide the controls when using a controller;
+touch **Touch** to show them again. Hiding controls or leaving the app
+releases every touch input. Physical controllers keep their usual ports.
+
+### Edit the touch layout
+
+1. Tap **Edit** at the top right. The controls become draggable and touch
+   input to the game is released. The game keeps running; pause first if
+   you want to arrange the controls during a campaign or match.
+2. Drag each button or either stick to its preferred position. The drag
+   keeps its initial finger offset, so controls do not jump under your finger.
+3. Tap **Save and exit** to save all positions and resume touch input.
+
+The layout is kept in the app's private preferences and restored on the
+next launch. Positions use the same logical safe area on all resolutions
+and account for screen cutouts. Moved controls stay inside the display and
+below the fixed Edit / Save toolbar. Clearing app data also clears the layout.
 
 ## Settings
 
@@ -107,8 +133,8 @@ them:
 At the first start, the game writes the file with the default values. To
 get the default values again, delete the file.
 
-The settings are the settings of Linux, without the window, the mouse and
-the paths. Refer to [port/linux/README.md](../linux/README.md#settings).
+The shared engine settings apply to Android, except desktop window,
+mouse and path settings. Refer to [port/shared/README.md](../shared/README.md#settings).
 These settings are only for Android:
 
 | Setting | Function |
@@ -118,7 +144,7 @@ These settings are only for Android:
 
 ## Internet play
 
-Internet play operates as on Linux, but without Discord. When the game
+Internet play uses system link networking and invite links. When the game
 hosts a system link game, it puts the invite link on the clipboard and
 shows a notice.
 
@@ -142,9 +168,9 @@ drop it, and when it hosts, its players leave.
 
 ## Updates
 
-The app from GitHub Actions can update itself, as on Linux (refer to
-"Updates" in [port/linux/README.md](../linux/README.md#updates)). When you
-select "Yes":
+The app from GitHub Actions checks releases of
+[theLlamaNet/halo-ce-android](https://github.com/theLlamaNet/halo-ce-android).
+When a newer build is found and you select "Yes":
 
 1. The app downloads the new version.
 2. The package installer of Android opens. At the first update, Android asks
@@ -225,17 +251,17 @@ and supplies the thread pointer and TLS.
   (`host/host_sdl.c`).
 - Does the calls of the guest: system calls (`host/host_syscall.c`), SDL
   (`host/host_sdl.c`), OpenGL ES (`host/host_gl.c`), and the file and socket
-  functions of `port/linux/src/posix_*.c`.
+  functions of `port/shared/src/posix_*.c`.
 
 The guest calls the host through stubs (`tools/android_imports.py`). The
 two ABIs use the same registers for 32-bit integers, floats and pointers.
 `tools/android_gl_stubs.py` makes the OpenGL ES stubs from
-`port/linux/src/gl.h`. `tools/android_posix_stubs.py` makes the stubs of the
+`port/shared/src/gl.h`. `tools/android_posix_stubs.py` makes the stubs of the
 `posix_*` functions, which copy the `errno` of the host.
 
 ### OpenGL ES
 
-The renderer (`port/linux/src/d3d8_gl.c`) uses OpenGL ES 3.0, and some
+The renderer (`port/shared/src/d3d8_gl.c`) uses OpenGL ES 3.0, and some
 functions of OpenGL ES 3.2 if they are available:
 
 - The vertex shaders flip y and change the depth range from 0..1. The front
@@ -273,8 +299,7 @@ floating-point contraction, as on x86.
 
 ### Game source changes
 
-The x86 inline assembly is replaced by C (refer to
-[port/linux/README.md](../linux/README.md#game-source-changes)).
+The original x86 inline assembly is replaced by portable C.
 These changes are in `#ifdef HALO_ANDROID`:
 
 - Seven `#pragma bss_seg(".bss")` lines are removed. The Darwin target does
@@ -309,6 +334,5 @@ assembly of the port is necessary:
 - The device must let the app reserve the fixed guest addresses, from
   `0x80000000` to approximately `0x89000000`. If the addresses are not
   available, the app shows a message.
-- The game does not accept touch input. Use a controller or a keyboard.
 - Kernels with 16 KB pages (a developer option of Android 15) do not
   operate. The Xbox memory uses 4 KB pages.

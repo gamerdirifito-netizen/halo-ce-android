@@ -5,6 +5,7 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.WindowManager;
+import android.view.ViewGroup;
 
 import org.libsdl.app.SDLActivity;
 
@@ -15,6 +16,7 @@ import org.libsdl.app.SDLActivity;
 public class HaloActivity extends SDLActivity {
     /** lets system link's broadcasts in over Wi-Fi while the game runs */
     private WifiManager.MulticastLock multicastLock;
+    private TouchControls touchControls;
 
     @Override
     protected String[] getLibraries() {
@@ -24,6 +26,11 @@ public class HaloActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (mLayout != null) {
+            touchControls = new TouchControls(this);
+            mLayout.addView(touchControls, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         preferHighestRefreshRate();
         acquireMulticastLock();
@@ -32,7 +39,20 @@ public class HaloActivity extends SDLActivity {
     }
 
     @Override
+    protected void onPause() {
+        if (touchControls != null) touchControls.reset();
+        super.onPause();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        if (!hasFocus && touchControls != null) touchControls.reset();
+        super.onWindowFocusChanged(hasFocus);
+    }
+
+    @Override
     protected void onDestroy() {
+        if (touchControls != null) touchControls.reset();
         if (multicastLock != null && multicastLock.isHeld())
             multicastLock.release();
         multicastLock = null;
@@ -60,7 +80,7 @@ public class HaloActivity extends SDLActivity {
 
     /**
      * The game draws a frame at every display refresh, between its 30 Hz
-     * ticks (port/linux/game/render_interpolation.c); Android otherwise
+     * ticks (port/shared/game/render_interpolation.c); Android otherwise
      * often keeps an app at 60 Hz on a faster display.
      */
     private void preferHighestRefreshRate() {

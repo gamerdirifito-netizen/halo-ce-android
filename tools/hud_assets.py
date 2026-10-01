@@ -9,7 +9,7 @@ SVG redraws of the Halo PC HUD sheets, laid out as the Xbox maps' sheets:
 
 The game draws a HUD bitmap at its tag's size and samples it with normalised
 coordinates, so a texture of 8x its size in the same layout draws in its
-place unchanged (port/linux/src/hud_hires.c swaps it in as the bitmap is
+place unchanged (port/shared/src/hud_hires.c swaps it in as the bitmap is
 uploaded). The SVGs are drawn on the PC sheets, 4x the Xbox ones, and are
 rendered at twice their size; the PC tags place some sprites elsewhere on
 their sheets, so each Xbox sprite (or bitmap) is copied from its PC

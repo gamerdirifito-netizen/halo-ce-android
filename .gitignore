@@ -6,6 +6,10 @@
 __pycache__
 .mypy_cache
 .cache/
+.gradle/
+local.properties
+*.keystore
+*.jks
 
 # Build files
 build/

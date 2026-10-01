@@ -5199,7 +5199,7 @@ static void widget_instance_render_spinner_list(
 
 The menus were made for a controller: the d-pad moves the focus through a
 screen's items and A activates the focused one. With the mouse
-(port/linux/include/halo_ui_pointer.h) the item under the pointer takes the
+(port/shared/include/halo_ui_pointer.h) the item under the pointer takes the
 focus, a left click presses A on it (on a spinner list, left or right by the
 half clicked), a right click presses B and the wheel the d-pad. The items and
 where they are drawn are noted while the menus draw (ui_mouse_note_target),
@@ -6910,7 +6910,7 @@ static boolean ui_check_for_pause_game(
 		}
 	}
 	/* This runs once a frame, several frames per tick on the native builds
-	(port/linux/game/render_interpolation.c): count the lock down in 30 Hz
+	(port/shared/game/render_interpolation.c): count the lock down in 30 Hz
 	ticks of real time, not in frames. */
 	{
 		static real leftover_ticks = 0.f;

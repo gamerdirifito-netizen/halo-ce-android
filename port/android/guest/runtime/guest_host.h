@@ -38,7 +38,7 @@ void host_set_tp(unsigned int thread);
 __guest_thread_start(thread); returns 0 or an errno value */
 int host_thread_create(unsigned int thread, unsigned int stack_size);
 
-/* ---------- memory write tracking (port/linux/src/memory_watch.c) */
+/* ---------- memory write tracking (port/shared/src/memory_watch.c) */
 
 void host_memory_watch_initialize(void);
 void host_memory_watch_protect(unsigned int address, unsigned int size);
@@ -71,6 +71,7 @@ void host_sdl_get_clipboard_text(char *buffer, unsigned int size);
 int host_sdl_show_toast(const char *message, int duration, int gravity, int x, int y);
 int host_sdl_show_simple_message_box(unsigned int flags, const char *title, const char *message);
 int host_sdl_get_gamepads(unsigned int *ids, int capacity);
+void host_touch_read(int *state);
 unsigned int host_sdl_open_gamepad(unsigned int id);
 unsigned int host_sdl_gamepad_from_id(unsigned int id);
 int host_sdl_gamepad_axis(unsigned int gamepad, int axis);

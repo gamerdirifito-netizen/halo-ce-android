@@ -391,7 +391,7 @@ boolean controls_enable_crouch = FALSE;
 boolean controls_enable_doubled_spin = FALSE;
 boolean controls_swap_doubled_spin_state = FALSE;
 /* The native builds read input once a frame and draw several frames per
-30 Hz tick (port/linux/game/render_interpolation.c). The pitch autolevel and
+30 Hz tick (port/shared/game/render_interpolation.c). The pitch autolevel and
 limits were stepped once per input update, a tick on the Xbox, so they step
 by the ticks the frame lasted; an impulse applied from a tick steps by one. */
 static real player_control_angle_step_ticks = 1.f;
@@ -1233,7 +1233,7 @@ static void get_local_player_input_blob(
 							&target_angular_position,
 							&target_angular_velocity);
 						{
-							/* no magnetism for the mouse (port/linux/src/xinput_sdl.c) */
+							/* no magnetism for the mouse (port/shared/src/xinput_sdl.c) */
 							extern int halo_linux_mouse_aiming(short gamepad_index);
 
 							if (halo_linux_mouse_aiming(gamepad_index))
@@ -1281,7 +1281,7 @@ static void get_local_player_input_blob(
 						input->facing_delta.pitch = facing_scale * look_delta.pitch;
 					}
 					{
-						/* direct mouse aim (port/linux/src/xinput_sdl.c) */
+						/* direct mouse aim (port/shared/src/xinput_sdl.c) */
 						extern int halo_linux_mouse_look(short gamepad_index, real *yaw, real *pitch);
 						real mouse_yaw;
 						real mouse_pitch;

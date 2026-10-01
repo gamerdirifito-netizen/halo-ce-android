@@ -27,7 +27,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * The app's self-updater, as the desktop games' (port/linux/src/updater.c).
+ * The app's self-updater, as the desktop games' (port/shared/src/updater.c).
  *
  * A build of the main branch made by GitHub Actions knows its build number
  * (BuildConfig.HALO_BUILD_NUMBER, the workflow's run number, which names its
@@ -47,8 +47,8 @@ import java.util.zip.ZipInputStream;
  * app must keep for Android to install a new version over it.
  */
 final class Updater {
-    private static final String REPOSITORY = "cybersecurity/halo-ce-universal";
-    private static final String USER_AGENT = "halo-ce-universal-updater";
+    private static final String REPOSITORY = "theLlamaNet/halo-ce-android";
+    private static final String USER_AGENT = "halo-ce-android-updater";
     private static final int TIMEOUT_MILLISECONDS = 20000;
 
     private Updater() {

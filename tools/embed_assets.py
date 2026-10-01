@@ -5,9 +5,9 @@ tools/hud_assets.py) in the game as C data:
     python tools/embed_assets.py OUTPUT.c
 
 writes OUTPUT.c with each PNG and the bitmap it stands for (its tag and
-index, from port/assets/hud/layout.json), as port/linux/src/hud_hires.h
+index, from port/assets/hud/layout.json), as port/shared/src/hud_hires.h
 declares them. The builds generate it (hud_assets_build, called by
-tools/linux_build.py, windows_build.py and android_build.py), so the PNGs
+tools/android_build.py), so the PNGs
 are the committed source and Android needs no files beside its guest image.
 
 The data are 32-bit words, not bytes: the Android build passes the guest's
@@ -52,7 +52,7 @@ def hud_assets_build(n: Any, prefix: str, output: Path) -> List[Path]:
 
 def png_size(data: bytes, name: str) -> tuple:
     """The width and height of an 8-bit RGBA, non-interlaced PNG (the only
-    kind port/linux/src/hud_hires.c reads)."""
+    kind port/shared/src/hud_hires.c reads)."""
     if data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
         sys.exit(f"{name}: not a PNG")
     width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", data[16:29])

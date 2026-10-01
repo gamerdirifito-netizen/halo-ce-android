@@ -473,7 +473,7 @@ symbols in this file:
 
 #include "cache/cache_files.h"
 
-/* port: internet play's Discord presence (port/linux/src/p2p.c) */
+/* port: internet play's Discord presence (port/shared/src/p2p.c) */
 void p2p_set_game_player_counts(int count, int maximum);
 
 /* ---------- constants */
@@ -482,7 +482,7 @@ void p2p_set_game_player_counts(int count, int maximum);
 
 enum
 {
-	/* the native builds' session limits (port/linux/include/halo_port_limits.h) */
+	/* the native builds' session limits (port/shared/include/halo_port_limits.h) */
 	MAXIMUM_NETWORK_MACHINE_COUNT = HALO_PORT_MAXIMUM_NETWORK_MACHINES,
 	MAXIMUM_NETWORK_PLAYER_COUNT = HALO_PORT_MAXIMUM_NETWORK_PLAYERS,
 	NETWORK_GAME_NAME_LENGTH = 16,
@@ -678,7 +678,7 @@ struct network_game_server
 	long waiting_player_count;
 };
 
-/* the layout follows the session limits (port/linux/include/halo_port_limits.h) */
+/* the layout follows the session limits (port/shared/include/halo_port_limits.h) */
 typedef char network_game_players_offset_assert[
 	offsetof(struct network_game, players) == HALO_PORT_NETWORK_GAME_PLAYERS_OFFSET ? 1 : -1];
 typedef char network_game_variant_has_teams_offset_assert[
@@ -780,10 +780,10 @@ static long network_game_server_frequent_updates_until[MAXIMUM_NETWORK_MACHINE_C
 network_game_server_client_machine_may_slow_countdown) */
 static boolean network_game_server_countdown_slowed[MAXIMUM_NETWORK_MACHINE_COUNT];
 
-/* port/linux/game/network_distributed.c's (the host's bans: bans.txt) */
+/* port/shared/game/network_distributed.c's (the host's bans: bans.txt) */
 boolean network_distributed_banned(unsigned long address, char const *hardware_id);
 void network_distributed_ban(long machine_index, unsigned long address, char const *names);
-/* port/linux/src/p2p.c's */
+/* port/shared/src/p2p.c's */
 enum
 {
 	P2P_HARDWARE_ID_SIZE = 33,

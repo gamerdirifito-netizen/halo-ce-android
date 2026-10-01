@@ -30,7 +30,7 @@ This header is included by both halves.
 keeps its heaps low in the address space and fills it upwards */
 #define HALO_GUEST_IMAGE_BASE 0x88000000u
 
-/* the Xbox contiguous memory window (port/linux/src/platform.h) */
+/* the Xbox contiguous memory window (port/shared/src/platform.h) */
 #define HALO_GUEST_WINDOW_BASE 0x80000000u
 #define HALO_GUEST_WINDOW_SIZE 0x08000000u
 

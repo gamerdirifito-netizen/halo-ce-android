@@ -55,7 +55,7 @@ struct network_game
 	short difficulty;
 	short machine_count;
 	/* port: the native builds' session limits, 128 machines and players
-	(port/linux/include/halo_port_limits.h) */
+	(port/shared/include/halo_port_limits.h) */
 	struct network_machine machines[HALO_PORT_MAXIMUM_NETWORK_MACHINES];
 	short player_count;
 	struct network_player players[HALO_PORT_MAXIMUM_NETWORK_PLAYERS];

@@ -265,7 +265,7 @@ symbols in this file:
 /* system_milliseconds(), for the settings update interval */
 #include "cseries/cseries_windows.h"
 
-/* port/linux/game/network_distributed.c's */
+/* port/shared/game/network_distributed.c's */
 void network_distributed_handle_message(long machine_index, word const *message, word size);
 
 /* ---------- constants */
@@ -273,7 +273,7 @@ void network_distributed_handle_message(long machine_index, word const *message,
 enum
 {
 	/* the native builds' session limits and protocol
-	(port/linux/include/halo_port_limits.h) */
+	(port/shared/include/halo_port_limits.h) */
 	MAXIMUM_NETWORK_MACHINE_COUNT = HALO_PORT_MAXIMUM_NETWORK_MACHINES,
 	NETWORK_MESSAGE_BUFFER_SIZE = HALO_PORT_MAXIMUM_NETWORK_MESSAGE_SIZE,
 	NETWORK_GAME_MESSAGE_VERSION = HALO_PORT_NETWORK_GAME_MESSAGE_VERSION,
@@ -765,7 +765,7 @@ static struct network_game_server_client_machine *network_game_server_client_mac
 	return game_machine_index == machine_index ? machine : NULL;
 }
 
-/* the distributed netcode's per-tick state (port/linux/game/network_distributed.c),
+/* the distributed netcode's per-tick state (port/shared/game/network_distributed.c),
 unreliably (a lost one is overtaken by the next) to one machine in the game */
 boolean network_distributed_server_send_to_machine(
 	long machine_index,
@@ -1267,7 +1267,7 @@ boolean network_game_server_handle_client_message(
 				break;
 
 			case _message_type_data:
-				/* the distributed netcode's messages (port/linux/NETCODE.md) */
+				/* the distributed netcode's messages (port/shared/NETCODE.md) */
 				/* (in game, from a machine that has loaded it, as a datagram
 				is: else dropped) */
 				if (network_game_server_client_machine_is_joined_to_game(server, machine) &&
@@ -1463,7 +1463,7 @@ boolean network_game_server_handle_datagram(
 			break;
 
 			case _message_type_data:
-				/* the distributed netcode's messages (port/linux/NETCODE.md) */
+				/* the distributed netcode's messages (port/shared/NETCODE.md) */
 				/* (from a machine in the game, which the lookup finds only among
 				those that joined, and only in game: else dropped) */
 				if (network_game_server_get_state(server, NULL) == _network_game_server_state_ingame)

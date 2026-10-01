@@ -5,7 +5,7 @@ code - 32-bit pointers, as the game's data formats require - inside an
 ordinary 64-bit Android app. This graph builds
 
 - the guest image, build/android/halo_guest.elf: the game sources, the
-  platform layer shared with the Linux port (port/linux/src) and the guest
+  shared engine layer (port/shared/src) and the guest
   runtime (port/android/guest) with a subset of musl as its C library, all
   compiled by clang for arm64_32-apple-watchos, converted to ELF assembly
   (tools/android_asm_convert.py), assembled for AArch64 and linked at a fixed
@@ -25,18 +25,53 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .linux_build import (LINUX_PROFILE, MINIUPNPC_DEFINES, MINIUPNPC_DIR, MUSL_MATH_DIR, XDK_INCLUDE,
+from .android_sources import (ANDROID_PROFILE, MINIUPNPC_DEFINES, MINIUPNPC_DIR, MUSL_MATH_DIR, XDK_INCLUDE,
                           compile_launcher, game_defines_and_includes, game_sources, miniupnpc_sources,
-                          musl_math_sources, pgo_mode, pgo_profile,
+                          musl_math_sources, pgo_profile,
                           profile_use_flags, xdk_headers)
 from .embed_assets import hud_asset_inputs, hud_assets_build
 from .ninja_syntax import Writer
 
+
+class WindowsAndroidWriter:
+    """Run the port's POSIX build rules with Git for Windows' Bash."""
+    def __init__(self, writer: Writer):
+        self.writer = writer
+        git = shutil.which("git")
+        self.bash = Path(git).resolve().parent.parent / "bin/bash.exe" if git else Path("")
+        if not self.bash.is_file():
+            raise RuntimeError("Android builds on Windows require Git for Windows (Bash).")
+
+    def __getattr__(self, name):
+        return getattr(self.writer, name)
+
+    def build(self, outputs, rule, **kwargs):
+        if rule.startswith("android_") and rule != "android_gradle":
+            first = outputs[0] if isinstance(outputs, list) else outputs
+            script = Path(str(first) + ".shell")
+            script.parent.mkdir(parents=True, exist_ok=True)
+            variables = dict(kwargs.get("variables") or {})
+            variables["android_rule_script"] = script.as_posix()
+            kwargs["variables"] = variables
+        return self.writer.build(outputs=outputs, rule=rule, **kwargs)
+
+    def rule(self, name, command, **kwargs):
+        if name != "android_gradle":
+            # Pass the expanded command through a file: Windows command-line
+            # quoting otherwise strips the Python path's embedded quotes.
+            original_rsp = kwargs.pop("rspfile", None)
+            original_content = kwargs.pop("rspfile_content", "")
+            kwargs["rspfile"] = "$android_rule_script"
+            kwargs["rspfile_content"] = command + " #HALO_RSP# " + str(original_content)
+            command = (f'$python tools/android_windows_shell.py "$android_rule_script" '
+                       f'"{self.bash.as_posix()}"' + (f' "{original_rsp}"' if original_rsp else ""))
+        self.writer.rule(name=name, command=command, **kwargs)
+
 PORT_DIR = Path("port/android")
-LINUX_DIR = Path("port/linux")
+SHARED_DIR = Path("port/shared")
 BUILD = Path("build/android")
 THIRD_PARTY = BUILD / "third_party"
-# the TOML parser config.toml is read with (port/linux/src/port_config.c)
+# the TOML parser config.toml is read with (port/shared/src/port_config.c)
 TOML_DIR = Path("port/third_party/tomlc17")
 KCP_DIR = Path("port/third_party/kcp")
 MUSL_VERSION = "1.2.5"
@@ -77,7 +112,7 @@ GUEST_ABI_FLAGS = [
     "-O2",
 ]
 
-# as the Linux build (tools/linux_build.py), minus what only x86 needs
+# Compatibility flags for the original MSVC/Xbox game code.
 GUEST_CODE_FLAGS = [
     "-fms-extensions",
     "-fcommon",
@@ -194,11 +229,15 @@ def _musl_sources() -> List[Path]:
 
 
 def android_configure_inputs() -> List[Path]:
-    return [Path(__file__), PORT_DIR / "guest" / "runtime", PORT_DIR / "host", LINUX_DIR / "src", *hud_asset_inputs()]
+    return [Path(__file__), Path("tools/android_sources.py"), Path("tools/msvc_semantics.py"),
+            SHARED_DIR / "port.json", SHARED_DIR / "game", Path("tools/android_windows_shell.py"), Path("tools/android_windows_gradle.py"),
+            PORT_DIR / "guest" / "runtime", PORT_DIR / "host", SHARED_DIR / "src",
+            PORT_DIR / "app/src/main/java/com/halo/decomp", XDK_INCLUDE,
+            *sorted({p.parent for p in Path("source").rglob("*.c")}), *hud_asset_inputs()]
 
 
 def generate_android_build(n: Writer, sln: Any) -> None:
-    config_path = LINUX_DIR / "port.json"
+    config_path = SHARED_DIR / "port.json"
     if not config_path.is_file() or not (PORT_DIR / "host").is_dir():
         return
     ndk = Path(sln.android_ndk) if getattr(sln, "android_ndk", None) else _find_ndk()
@@ -213,11 +252,15 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     import json
     config: Dict[str, Any] = json.loads(config_path.read_text(encoding="utf-8"))
 
-    toolchain = ndk / "toolchains" / "llvm" / "prebuilt" / "linux-x86_64"
+    windows = os.name == "nt"
+    if windows:
+        n = WindowsAndroidWriter(n)
+    toolchain = ndk / "toolchains" / "llvm" / "prebuilt" / ("windows-x86_64" if windows else "linux-x86_64")
     sysroot_include = toolchain / "sysroot" / "usr" / "include"
-    host_cc = toolchain / "bin" / f"aarch64-linux-android{ANDROID_API}-clang"
+    host_cc = (f'{toolchain.as_posix()}/bin/clang.exe --target=aarch64-linux-android{ANDROID_API}'
+               if windows else str(toolchain / "bin" / f"aarch64-linux-android{ANDROID_API}-clang"))
     ndk_bin = toolchain / "bin"
-    guest_cc = getattr(sln, "android_guest_cc", None) or "clang"
+    guest_cc = getattr(sln, "android_guest_cc", None) or (f"{ndk_bin.as_posix()}/clang.exe" if windows else "clang")
 
     guest_dir = BUILD / "guest"
     obj_dir = guest_dir / "obj"
@@ -226,9 +269,9 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     libc_internal = guest_dir / "libc_internal"
     gl_include = guest_dir / "gl_include"
     arch = PORT_DIR / "guest" / "libc" / "arch" / "arm64_32"
-    semantics_header = Path("build/linux/halo_msvc_semantics.h")
-    platform_semantics_header = Path("build/linux/platform_msvc_semantics.h")
-    prefix_header = LINUX_DIR / "include" / "halo_linux_prefix.h"
+    semantics_header = gen_dir / "halo_msvc_semantics.h"
+    platform_semantics_header = gen_dir / "platform_msvc_semantics.h"
+    prefix_header = SHARED_DIR / "include" / "halo_linux_prefix.h"
     image = BUILD / "halo_guest.elf"
     sdl_build = BUILD / "sdl3-build"
     libsdl = sdl_build / "libSDL3.so"
@@ -240,9 +283,23 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     n.comment("Android build (ninja android); see port/android/README.md")
     n.variable("android_guest_cc", guest_cc)
     n.variable("android_host_cc", str(host_cc))
-    n.variable("android_ndk_bin", str(ndk_bin))
+    n.variable("android_ndk_bin", ndk_bin.as_posix())
 
     # ---------- generated headers and sources
+
+    # The Android guest needs MSVC linkage semantics, independently of any
+    # desktop build graph.
+    n.rule(name="android_msvc_semantics",
+           command="$python tools/msvc_semantics.py --output $out $scan",
+           description="ANDROID MSVC SEMANTICS $out", restat=True)
+    game_headers = sorted(p for p in Path("source").rglob("*") if p.suffix in (".c", ".h"))
+    n.build(outputs=semantics_header, rule="android_msvc_semantics",
+            implicit=[Path("tools/msvc_semantics.py"), *xdk_headers(), *game_headers],
+            variables={"scan": f"--all-inlines --tags source --inlines source --inlines {XDK_INCLUDE}"})
+    n.build(outputs=platform_semantics_header, rule="android_msvc_semantics",
+            implicit=[Path("tools/msvc_semantics.py"), *xdk_headers()],
+            variables={"scan": f"--inlines {XDK_INCLUDE}"})
+
 
     alltypes = libc_include / "bits" / "alltypes.h"
     syscall_h = libc_include / "bits" / "syscall.h"
@@ -262,7 +319,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     n.build(outputs=syscall_h, rule="android_syscall_h", inputs=arch / "bits" / "syscall.h.in")
     n.rule(
         name="android_version_h",
-        command=f"echo '#define VERSION \"{MUSL_VERSION}\"' > $out",
+        command=f'echo \'#define VERSION "{MUSL_VERSION}"\' > $out',
         description="ANDROID MUSL $out",
     )
     n.build(outputs=version_h, rule="android_version_h")
@@ -271,7 +328,9 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     gl_stamp = gl_include / "stamp"
     n.rule(
         name="android_gl_include",
-        command=(f"mkdir -p {gl_include} && ln -sfn {sysroot_include}/GLES2 {gl_include}/GLES2 && "
+        command=(f"mkdir -p {gl_include} && cp -r {sysroot_include.as_posix()}/GLES2 {sysroot_include.as_posix()}/GLES3 "
+                 f"{sysroot_include.as_posix()}/KHR {gl_include}/ && touch $out") if windows else
+                (f"mkdir -p {gl_include} && ln -sfn {sysroot_include}/GLES2 {gl_include}/GLES2 && "
                  f"ln -sfn {sysroot_include}/GLES3 {gl_include}/GLES3 && "
                  f"ln -sfn {sysroot_include}/KHR {gl_include}/KHR && touch $out"),
         description="ANDROID GL HEADERS",
@@ -282,22 +341,22 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     gl_imports = gen_dir / "gl_imports.list"
     n.rule(
         name="android_gl_stubs",
-        command=(f"{python} tools/android_gl_stubs.py {LINUX_DIR}/src/gl.h {sysroot_include}/GLES3/gl32.h "
-                 f"{sysroot_include}/GLES2/gl2ext.h {guest_gl_c} {gl_imports}"),
+        command=(f"{python} tools/android_gl_stubs.py {SHARED_DIR}/src/gl.h {sysroot_include.as_posix()}/GLES3/gl32.h "
+                 f"{sysroot_include.as_posix()}/GLES2/gl2ext.h {guest_gl_c} {gl_imports}"),
         description="ANDROID GL STUBS",
     )
     n.build(outputs=[guest_gl_c, gl_imports], rule="android_gl_stubs",
-            implicit=[Path("tools/android_gl_stubs.py"), LINUX_DIR / "src" / "gl.h"])
+            implicit=[Path("tools/android_gl_stubs.py"), SHARED_DIR / "src" / "gl.h"])
 
     guest_posix_c = gen_dir / "guest_posix.c"
     posix_imports = gen_dir / "posix_imports.list"
     n.rule(
         name="android_posix_stubs",
-        command=f"{python} tools/android_posix_stubs.py {LINUX_DIR}/src/posix.h {guest_posix_c} {posix_imports}",
+        command=f"{python} tools/android_posix_stubs.py {SHARED_DIR}/src/posix.h {guest_posix_c} {posix_imports}",
         description="ANDROID POSIX STUBS",
     )
     n.build(outputs=[guest_posix_c, posix_imports], rule="android_posix_stubs",
-            implicit=[Path("tools/android_posix_stubs.py"), LINUX_DIR / "src" / "posix.h"])
+            implicit=[Path("tools/android_posix_stubs.py"), SHARED_DIR / "src" / "posix.h"])
 
     imports_s = gen_dir / "imports.s"
     host_table_c = BUILD / "host" / "host_import_table.c"
@@ -338,10 +397,9 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     guest_abi = " ".join(GUEST_ABI_FLAGS + (["-DHALO_RELEASE"] if getattr(sln, "port_release", False) else []))
     guest_code = " ".join(GUEST_CODE_FLAGS)
     tool_implicit = [Path("tools/android_asm_convert.py"), *generated_headers]
-    # profile-guided optimisation with the Linux build's profile (committed,
-    # or trained by the Linux build with --pgo=train): the game and platform
-    # code are the same, and functions that differ simply go without
-    profile = pgo_profile(sln, LINUX_PROFILE if pgo_mode(sln) == "train" else None, [LINUX_PROFILE], guest_cc)
+    # The inherited profile optimizes common engine functions. Changed or
+    # Android-specific functions can compile without matching profile data.
+    profile = pgo_profile(sln, None, [ANDROID_PROFILE], guest_cc)
     profile_flags = " ".join(profile_use_flags(profile))
     if profile:
         tool_implicit.append(profile)
@@ -386,7 +444,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     game_cflags = " ".join([
         guest_abi, guest_code, " ".join(game_flags), profile_flags,
         f"-include {prefix_header}", f"-include {semantics_header}",
-        f"-I{LINUX_DIR}/include", game_defines_and_includes(config), *libc_includes, f"-idirafter {XDK_INCLUDE}",
+        f"-I{SHARED_DIR}/include", game_defines_and_includes(config), *libc_includes, f"-idirafter {XDK_INCLUDE}",
     ])
     for source in game_sources(config):
         cflags = game_cflags
@@ -396,20 +454,20 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     for source in sorted(Path(config["game_sources"]).glob("*.c")):
         objects.append(guest_object(source, game_cflags))
 
-    # the platform layer shared with Linux, and the guest runtime
+    # the shared engine layer and the guest runtime
     platform_cflags = " ".join([
         guest_abi, guest_code, "-std=gnu11", "-D_GNU_SOURCE", "-DHALO_LINUX_PLATFORM_LAYER", "-w", profile_flags,
         f"-include {prefix_header}", f"-include {platform_semantics_header}",
-        f"-I{LINUX_DIR}/src", f"-I{LINUX_DIR}/include", f"-I{PORT_DIR}/guest/runtime",
+        f"-I{SHARED_DIR}/src", f"-I{SHARED_DIR}/include", f"-I{PORT_DIR}/guest/runtime",
         f"-I{PORT_DIR}/include", f"-I{TOML_DIR}", f"-I{KCP_DIR}", "-Isource -Isource/cseries",
         f"-I{SDL_DIR}/include", f"-I{gl_include}", *libc_includes, f"-idirafter {XDK_INCLUDE}",
     ])
     guest_host_only = {"memory_watch.c"}  # replaced by guest_memory_watch.c
-    for source in sorted((LINUX_DIR / "src").glob("*.c")):
+    for source in sorted((SHARED_DIR / "src").glob("*.c")):
         if source.name.startswith("posix_") or source.name in guest_host_only:
             continue
         objects.append(guest_object(source, platform_cflags))
-    # the high-res HUD's textures (port/assets/hud; port/linux/src/hud_hires.c)
+    # the high-res HUD's textures (port/assets/hud; port/shared/src/hud_hires.c)
     for source in hud_assets_build(n, "android", gen_dir / "hud_hires_assets.c"):
         objects.append(guest_object(source, platform_cflags))
     # the settings file's parser (port/third_party/tomlc17)
@@ -433,7 +491,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     ])
     runtime_cflags = " ".join([
         guest_abi, guest_code, "-std=gnu11", "-D_GNU_SOURCE",
-        f"-I{PORT_DIR}/guest/runtime", f"-I{PORT_DIR}/include", f"-I{LINUX_DIR}/src",
+        f"-I{PORT_DIR}/guest/runtime", f"-I{PORT_DIR}/include", f"-I{SHARED_DIR}/src",
         f"-I{SDL_DIR}/include", f"-I{gl_include}", *libc_includes,
     ])
     runtime_dir = PORT_DIR / "guest" / "runtime"
@@ -469,7 +527,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     n.rule(
         name="android_sdl3",
         command=(f"cmake -S {SDL_DIR} -B {sdl_build} -G Ninja "
-                 f"-DCMAKE_TOOLCHAIN_FILE={ndk}/build/cmake/android.toolchain.cmake "
+                 f"-DCMAKE_TOOLCHAIN_FILE={ndk.as_posix()}/build/cmake/android.toolchain.cmake "
                  f"-DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-{ANDROID_API} -DCMAKE_BUILD_TYPE=Release "
                  f"-DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF "
                  # 16 KB pages (Android 15 and later), as the host library
@@ -493,11 +551,11 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     )
     host_cflags = " ".join([
         "-O2", "-g", "-fPIC", "-Wall", "-Wno-unused-function", "-D_GNU_SOURCE",
-        f"-I{PORT_DIR}/include", f"-I{PORT_DIR}/host", f"-I{SDL_DIR}/include", f"-I{LINUX_DIR}/src",
+        f"-I{PORT_DIR}/include", f"-I{PORT_DIR}/host", f"-I{SDL_DIR}/include", f"-I{SHARED_DIR}/src",
         f"-I{TOML_DIR}",
     ])
     host_sources = sorted((PORT_DIR / "host").glob("*.c")) + [
-        LINUX_DIR / "src" / "posix_files.c", LINUX_DIR / "src" / "posix_net.c",
+        SHARED_DIR / "src" / "posix_files.c", SHARED_DIR / "src" / "posix_net.c",
         # the app reads debug.sample_seconds from config.toml (host_main.c)
         TOML_DIR / "tomlc17.c",
     ]
@@ -509,7 +567,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     # as the other posix_*.c in the host
     miniupnpc_cflags = " ".join([host_cflags, f"-I{MINIUPNPC_DIR / 'include'}", f"-I{MINIUPNPC_DIR / 'src'}",
                                  *MINIUPNPC_DEFINES])
-    for source in [LINUX_DIR / "src" / "posix_upnp.c", *miniupnpc_sources()]:
+    for source in [SHARED_DIR / "src" / "posix_upnp.c", *miniupnpc_sources()]:
         obj = host_obj_dir / ("miniupnpc_" + source.name + ".o" if source.parent.parent == MINIUPNPC_DIR
                               else source.name + ".o")
         n.build(outputs=obj, rule="android_host_cc", inputs=source,
@@ -540,11 +598,16 @@ def generate_android_build(n: Writer, sln: Any) -> None:
     n.rule(
         name="android_gradle",
         # Gradle leaves the APK alone when its contents would not change
-        command=(f"cd {PORT_DIR} && ./gradlew --console=plain -q assembleDebug && "
+        command=(f"{python} tools/android_windows_gradle.py") if windows else
+                (f"cd {PORT_DIR} && ./gradlew --console=plain -q assembleDebug && "
                  "touch app/build/outputs/apk/debug/app-debug.apk"),
         description="ANDROID GRADLE $out",
         pool="console",
     )
-    n.build(outputs=apk, rule="android_gradle", inputs=[libmain, staged_sdl, staged_image])
+    n.build(outputs=apk, rule="android_gradle", inputs=[libmain, staged_sdl, staged_image],
+            implicit=[*sorted((PORT_DIR / "app/src").rglob("*.java")),
+                      *sorted((PORT_DIR / "app/src").rglob("*.xml")),
+                      PORT_DIR / "app/build.gradle", PORT_DIR / "build.gradle", PORT_DIR / "settings.gradle",
+                      Path("tools/android_windows_gradle.py")])
     n.build(outputs="android_apk", rule="phony", inputs=apk)
     n.newline()
