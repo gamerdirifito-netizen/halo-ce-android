@@ -710,6 +710,7 @@ static GLuint texture_entry_result(struct texture_entry *entry, GLenum *target,
 		if (texture)
 		{
 			description->hires = TRUE;
+			description->hires_coverage = hud_hires_override_coverage(entry->override);
 			return texture;
 		}
 	}
@@ -796,7 +797,8 @@ GLuint xgpu_texture_get(const DWORD *resource, const D3DCOLOR *palette, GLenum *
 			unsigned long levels;
 
 			entry->override = hud_hires_override_find(entry->address, entry->description.width,
-				entry->description.height);
+				entry->description.height, entry->description.levels > 1 ?
+				xgpu_texture_level_offset(&entry->description, 1) : xgpu_texture_face_size(&entry->description));
 			if (entry->override >= 0 && !hud_hires_override_texture(entry->override, &levels))
 				entry->override = -1;
 		}

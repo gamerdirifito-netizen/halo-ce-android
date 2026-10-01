@@ -29,7 +29,7 @@ from .android_sources import (ANDROID_PROFILE, MINIUPNPC_DEFINES, MINIUPNPC_DIR,
                           compile_launcher, game_defines_and_includes, game_sources, miniupnpc_sources,
                           musl_math_sources, pgo_profile,
                           profile_use_flags, xdk_headers)
-from .embed_assets import hud_asset_inputs, hud_assets_build
+from .embed_assets import hud_assets_build, hud_configure_inputs
 from .ninja_syntax import Writer
 
 
@@ -233,7 +233,7 @@ def android_configure_inputs() -> List[Path]:
             SHARED_DIR / "port.json", SHARED_DIR / "game", Path("tools/android_windows_shell.py"), Path("tools/android_windows_gradle.py"),
             PORT_DIR / "guest" / "runtime", PORT_DIR / "host", SHARED_DIR / "src",
             PORT_DIR / "app/src/main/java/com/halo/decomp", XDK_INCLUDE,
-            *sorted({p.parent for p in Path("source").rglob("*.c")}), *hud_asset_inputs()]
+            *sorted({p.parent for p in Path("source").rglob("*.c")}), *hud_configure_inputs()]
 
 
 def generate_android_build(n: Writer, sln: Any) -> None:
