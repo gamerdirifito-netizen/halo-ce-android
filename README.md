@@ -1,7 +1,8 @@
 # Halo: Combat Evolved for Android
 
 An Android-focused fork of [cybersecurity/halo-ce-universal](https://github.com/cybersecurity/halo-ce-universal),
-with built-in multi-touch controls and a movable, persistent touch layout.
+with built-in multi-touch controls, direct swipe aiming, optional phone rumble
+and gyroscope aiming, and a customizable, portable touch layout.
 Repository: [theLlamaNet/halo-ce-android](https://github.com/theLlamaNet/halo-ce-android).
 
 The game runs as an ARM64 app with OpenGL ES 3 and SDL3 audio. It requires
@@ -29,8 +30,8 @@ movement, aim and action controls at the same time.
 | Control | Action |
 | --- | --- |
 | Left stick | Move |
-| Right stick | Look |
-| Fire / Grenade | Fire weapon / throw grenade |
+| Swipe the display | Look, including while holding an action button |
+| Fire (left and right) / Grenade | Fire weapon / throw grenade |
 | A / Jump | Jump / accept in menus |
 | B / Melee | Melee / back in menus |
 | X / Reload | Reload / interact |
@@ -45,18 +46,48 @@ Touch controls merge with the first physical controller for player 1.
 Bluetooth and USB controllers still work, including additional players.
 Touch inputs are released when you hide the controls or leave the app.
 
-### Customize the layout
+### Options and General
 
-1. Tap **Edit** at the top right.
-2. Drag any action button, D-pad button or either stick to a new position.
-3. Tap **Save and exit** to save the layout and resume playing.
+Tap the circular, white-outline **Options** button. The menu contains
+**General**, **Edit buttons layout**, **Look sensitivity** and **Cheats**.
 
-Saved positions are restored on the next launch. The layout scales with
-the display and respects its safe area and screen cutouts. Moved controls
-stay within the display and below the editor toolbar, so **Save and exit**
-remains reachable. While editing, touch controls do not send game inputs;
-the game itself keeps running, so pause first when needed. Clearing app
-data resets the saved layout.
+**General** includes:
+
+- **Rumble**: enabled by default. The smartphone vibrates when the game sends
+  player 1's controller rumble, even without a connected controller. Vibration
+  intensity follows the motors on phones with amplitude control. Turning it
+  off or leaving the app stops the phone vibration. Controller rumble is retained.
+- **Gyroscope aim (Experimental)**: disabled by default. Rotate the phone to
+  adjust yaw and pitch alongside touch aiming. Both landscape orientations work;
+  motion is suspended in Options, the layout editor and while the app is unfocused.
+  It uses the look sensitivity setting. The toggle is unavailable without a gyroscope.
+- **Hide or add buttons**: show/hide individual controls, add buttons or duplicate
+  action buttons. **Reset** restores original positions, visibility and sizes and
+  removes copies. Each duplicate keeps its game action and has its own position
+  and size. The movement stick can be hidden or restored.
+- **Edit buttons size**: every original control and duplicate appears in a list,
+  including hidden controls, with **âˆ’**, **+** and a percentage value. Sizes
+  range from 50% to 200% in 10-point steps. The drawing and touch area resize
+  together; the movement stick's range and thumb resize with it.
+
+**Edit buttons layout** lets you drag visible controls to the edges of the full
+display, then tap **Save and exit**. **Export** and **Import** open a popup and
+Android's document picker so you choose the destination folder/filename or a
+saved `.halolayout` file. The version 2 configuration includes positions,
+visibility, duplicates, individual sizes, look sensitivity, Rumble and Gyroscope
+settings. Version 1 files still import with original sizes, Rumble enabled and
+Gyroscope disabled. Invalid files leave the current configuration unchanged.
+
+**Look sensitivity** adjusts both swipe and gyroscope aiming from 0.25x to 4x.
+**Cheats** includes the ten built-in cheat switches and six instantaneous actions
+from Halo CE's prototype `init.txt` / `cheats.txt`. Only enabled switches become
+green. Instant actions remain neutral and can be repeated. Cheats require an
+active player; network clients follow the host's rules. Objects available from
+spawn cheats depend on the current map.
+
+Settings are saved for the next launch. Clearing app data resets them. The game
+continues while editing the controls, so pause first if needed. Gyroscope and
+phone rumble still need gameplay verification on real Android hardware.
 
 ## Build
 
@@ -87,7 +118,7 @@ Its APK and license notices are collected in `dist/halo-android-release/`.
 builds only the native engine and libraries. `ninja` defaults to the APK.
 The inherited optimization profile requires clang 22+; `--pgo=off` disables it.
 
-Run the layout regression checks with:
+Run the layout, file compatibility and gyroscope regression checks with:
 
 ```sh
 python tools/test_touch_layout.py

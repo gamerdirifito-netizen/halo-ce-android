@@ -98,28 +98,64 @@ with the positions on the Xbox controller:
 The controller gets the rumble. The back gesture of Android is the B
 button. Bluetooth and USB keyboards also work. The screen
 accepts multi-touch input through an on-screen controller for player 1.
-The left stick moves and the right stick looks; both return to the center
-when released. The action buttons can be held while moving and looking.
+The left stick moves; drag anywhere outside it to look around. Looking uses
+relative finger displacement directly, with no right stick acceleration.
+Action buttons stay held while dragging, so either Fire button can also aim.
+A second Fire button on the left lets you shoot while aiming with the right hand.
 Use A to accept menu items and B to go back, and the on-screen D-pad to
-navigate. Fire, grenades, reload/action, melee, weapon switching, crouch,
-zoom, flashlight, grenade switching and pause have their own buttons.
-Touch **Hide** at the top to hide the controls when using a controller;
-touch **Touch** to show them again. Hiding controls or leaving the app
-releases every touch input. Physical controllers keep their usual ports.
+navigate. Touch **Hide** to hide the controls and **Touch** to show them again.
+Hiding controls or leaving the app releases every touch input.
 
-### Edit the touch layout
+### Touch options
 
-1. Tap **Edit** at the top right. The controls become draggable and touch
-   input to the game is released. The game keeps running; pause first if
-   you want to arrange the controls during a campaign or match.
-2. Drag each button or either stick to its preferred position. The drag
-   keeps its initial finger offset, so controls do not jump under your finger.
-3. Tap **Save and exit** to save all positions and resume touch input.
+Tap the circular, white-outline **Options** button to open:
 
-The layout is kept in the app's private preferences and restored on the
-next launch. Positions use the same logical safe area on all resolutions
-and account for screen cutouts. Moved controls stay inside the display and
-below the fixed Edit / Save toolbar. Clearing app data also clears the layout.
+- **Edit buttons layout**: drag the buttons and movement stick anywhere
+  across the full display, up to its edges. Tap the circular **Save and exit**
+  button to save and resume. The game keeps running; pause first to arrange
+  the controls during a campaign or match. Existing button positions are retained;
+  the old look stick is replaced by the additional Fire button. The circular
+  **Export** and **Import** buttons open a confirmation popup followed by
+  Android's document picker. Export lets you choose the folder and filename;
+  import lets you browse for a `.halolayout` file and applies it immediately.
+  Files preserve positions, hidden controls, duplicates, individual sizes,
+  look sensitivity, Rumble and Gyroscope settings.
+  Invalid files are rejected before changing the current layout.
+- **General** contains **Rumble**, **Gyroscope aim (Experimental)**,
+  **Hide or add buttons** and **Edit buttons size**.
+  Rumble defaults to on and mirrors player 1's controller motor requests to
+  the smartphone vibrator, even without a physical controller. It preserves
+  controller rumble and stops phone vibration when disabled or the app loses focus.
+  Gyroscope aim defaults to off, uses the phone's angular velocity to add yaw
+  and pitch to touch aiming, supports both landscape orientations, and follows
+  look sensitivity. Sensors stop when the app is unfocused; motion does not
+  reach the game while Options or the layout editor is open. Hardware-dependent
+  toggles are disabled when the device has no vibrator or gyroscope.
+  Hide/add lets you show or hide controls, restore a hidden button with
+  **Add button**, and **Duplicate** any action button. The movement stick can
+  be hidden/restored. **Reset** restores original positions, visibility and
+  sizes and removes all copies, after confirmation.
+  Edit size lists all controls, including hidden buttons and copies, with
+  **âˆ’**, **+** and a percentage value (50â€“200%, in 10-point steps). Drawing,
+  hit areas and the movement stick range resize together. Copies inherit the
+  source size and can then be resized independently.
+- **Look sensitivity**: adjust the slider from 0.25x to 4x. This setting and
+  the layout are saved in private app preferences and restored next launch.
+- **Cheats**: all ten built-in cheat flags and six cheat actions from Halo CE,
+  including the prototype init.txt / cheats.txt commands. Toggle rows become
+  green only after the game applies the change; tap again to disable them.
+  Instant actions (weapons, powerups, vehicles, camouflage, teleport) can be
+  repeated and keep their neutral background, since they are not switches.
+  Only enabled toggle cheats have a green row. Available spawned objects
+  depend on the current map.
+  Controller cheats use prototype button shortcuts when no cheats.txt is installed.
+  Cheats require an active player; network clients follow the host's existing rules.
+
+The version 2 `.halolayout` format saves all these settings. Version 1 files
+remain supported, with default sizes, Rumble on and Gyroscope off. Positions
+use display-relative coordinates while button circles keep their proportions.
+Clearing app data also clears touch and General settings. Test gyro response
+and phone rumble on actual Android hardware before relying on them.
 
 ## Settings
 

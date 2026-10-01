@@ -125,10 +125,25 @@ int halo_linux_mouse_look(short gamepad_index, float *yaw, float *pitch)
 	mouse_pending_y = 0.0f;
 	mouse_polls_unconsumed = 0;
 	pthread_mutex_unlock(&mouse_lock);
+#ifdef HALO_ANDROID
+	{
+		float delta[2];
+		host_touch_look_read(delta);
+		/* Logical display pixels, already scaled by the touch sensitivity. */
+		*yaw = -delta[0] * scale;
+		*pitch = -delta[1] * scale;
+        if (delta[0] != 0.0f || delta[1] != 0.0f)
+        {
+            pthread_mutex_lock(&mouse_lock);
+            mouse_aimed_ms = SDL_GetTicks();
+            pthread_mutex_unlock(&mouse_lock);
+        }
+	}
+#endif
 	if (x == 0.0f && y == 0.0f)
-		return FALSE;
-	*yaw = -x * scale * mouse_sensitivity();
-	*pitch = (invert ? y : -y) * scale * mouse_sensitivity();
+		return *yaw != 0.0f || *pitch != 0.0f;
+	*yaw += -x * scale * mouse_sensitivity();
+	*pitch += (invert ? y : -y) * scale * mouse_sensitivity();
 	return TRUE;
 }
 
@@ -618,6 +633,10 @@ DWORD WINAPI XInputSetState(HANDLE device, PXINPUT_FEEDBACK feedback)
 	if (port < 0)
 		return ERROR_DEVICE_NOT_CONNECTED;
 	count = sdl_gamepads(gamepads);
+#ifdef HALO_ANDROID
+	if (port == 0)
+		host_touch_rumble(feedback->Rumble.wLeftMotorSpeed, feedback->Rumble.wRightMotorSpeed);
+#endif
 	if (port < count)
 	{
 		/* the game refreshes the motors every frame; rumble a little longer
