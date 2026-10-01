@@ -98,7 +98,7 @@ ignored. This block:
   3. writes gamepad_log.txt in the same folder (name, VID:PID, GUID, buttons,
      axes, and the buttons pressed), to get the exact mapping without adb. */
 
-#define GP_LOG_MAX_LINES 600
+#define GP_LOG_MAX_LINES 1500
 
 static FILE *gp_log_file;
 static int gp_log_lines;
@@ -143,6 +143,7 @@ static void gamepad_patch_before_init(void)
 		return;
 	snprintf(path, sizeof(path), "%s/gamepad_log.txt", external);
 	gp_log_file = fopen(path, "w");
+	gp_log("patch v2: logs devices, keys, mouse, joystick and gamepad events");
 	snprintf(path, sizeof(path), "%s/gamecontrollerdb.txt", external);
 	file = fopen(path, "r");
 	if (file)
@@ -210,8 +211,68 @@ static void gamepad_patch_fallback(SDL_JoystickID id)
 	}
 }
 
+static const char *gp_name(const char *name)
+{
+	return name ? name : "?";
+}
+
+/* every device SDL knows now: joysticks, keyboards and mice, by name */
+static void gamepad_patch_dump_devices(const char *when)
+{
+	int count = 0, index;
+
+	gp_log("--- devices (%s) ---", when);
+	{
+		SDL_JoystickID *list = SDL_GetJoysticks(&count);
+
+		for (index = 0; list && index < count; index++)
+			gp_log("joystick %u \"%s\" %04x:%04x gamepad=%d", (unsigned)list[index],
+				gp_name(SDL_GetJoystickNameForID(list[index])), (unsigned)SDL_GetJoystickVendorForID(list[index]),
+				(unsigned)SDL_GetJoystickProductForID(list[index]), (int)SDL_IsGamepad(list[index]));
+		SDL_free(list);
+	}
+	{
+		SDL_KeyboardID *list = SDL_GetKeyboards(&count);
+
+		for (index = 0; list && index < count; index++)
+			gp_log("keyboard %u \"%s\"", (unsigned)list[index], gp_name(SDL_GetKeyboardNameForID(list[index])));
+		SDL_free(list);
+	}
+	{
+		SDL_MouseID *list = SDL_GetMice(&count);
+
+		for (index = 0; list && index < count; index++)
+			gp_log("mouse %u \"%s\"", (unsigned)list[index], gp_name(SDL_GetMouseNameForID(list[index])));
+		SDL_free(list);
+	}
+}
+
+/* called on every poll: lists the devices a few seconds after the game starts
+polling, and again later, to catch a pad that connects late */
+static void gamepad_patch_tick(void)
+{
+	static Uint64 first;
+	static int stage;
+	Uint64 now = SDL_GetTicks();
+
+	if (!first)
+		first = now + 1;
+	if (stage == 0 && now - first > 3000)
+	{
+		stage = 1;
+		gamepad_patch_dump_devices("3 s");
+	}
+	else if (stage == 1 && now - first > 20000)
+	{
+		stage = 2;
+		gamepad_patch_dump_devices("20 s");
+	}
+}
+
 static void gamepad_patch_event(const SDL_Event *event)
 {
+	static Uint64 last_motion;
+
 	switch (event->type)
 	{
 	case SDL_EVENT_JOYSTICK_ADDED:
@@ -225,16 +286,60 @@ static void gamepad_patch_event(const SDL_Event *event)
 			gamepad_patch_fallback(id);
 		break;
 	}
+	case SDL_EVENT_JOYSTICK_REMOVED:
+		gp_log("joystick removed %u", (unsigned)event->jdevice.which);
+		break;
+	case SDL_EVENT_GAMEPAD_ADDED:
+		gp_log("gamepad added %u", (unsigned)event->gdevice.which);
+		break;
+	case SDL_EVENT_KEYBOARD_ADDED:
+		gp_log("keyboard added %u \"%s\"", (unsigned)event->kdevice.which,
+			gp_name(SDL_GetKeyboardNameForID(event->kdevice.which)));
+		break;
+	case SDL_EVENT_MOUSE_ADDED:
+		gp_log("mouse added %u \"%s\"", (unsigned)event->mdevice.which,
+			gp_name(SDL_GetMouseNameForID(event->mdevice.which)));
+		break;
+	case SDL_EVENT_KEY_DOWN:
+		if (!event->key.repeat)
+			gp_log("  key %s (scancode %d) from %u \"%s\"", SDL_GetKeyName(event->key.key), (int)event->key.scancode,
+				(unsigned)event->key.which, gp_name(SDL_GetKeyboardNameForID(event->key.which)));
+		break;
+	case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		gp_log("  mouse button %d from %u \"%s\"", (int)event->button.button, (unsigned)event->button.which,
+			gp_name(SDL_GetMouseNameForID(event->button.which)));
+		break;
+	case SDL_EVENT_MOUSE_MOTION:
+	{
+		Uint64 now = SDL_GetTicks();
+
+		/* one line in 200 ms: a moving pointer would fill the log */
+		if (now - last_motion >= 200)
+		{
+			last_motion = now;
+			gp_log("  mouse move %.0f,%.0f from %u \"%s\"", (double)event->motion.xrel, (double)event->motion.yrel,
+				(unsigned)event->motion.which, gp_name(SDL_GetMouseNameForID(event->motion.which)));
+		}
+		break;
+	}
+	case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		gp_log("  gamepad button %d (id %u)", (int)event->gbutton.button, (unsigned)event->gbutton.which);
+		break;
+	case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+		if (abs((int)event->gaxis.value) > 16000)
+			gp_log("  gamepad axis %d = %d (id %u)", (int)event->gaxis.axis, (int)event->gaxis.value,
+				(unsigned)event->gaxis.which);
+		break;
 	case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
-		gp_log("  button b%d", (int)event->jbutton.button);
+		gp_log("  joystick button b%d", (int)event->jbutton.button);
 		break;
 	case SDL_EVENT_JOYSTICK_AXIS_MOTION:
 		if (abs((int)event->jaxis.value) > 16000)
-			gp_log("  axis a%d = %d", (int)event->jaxis.axis, (int)event->jaxis.value);
+			gp_log("  joystick axis a%d = %d", (int)event->jaxis.axis, (int)event->jaxis.value);
 		break;
 	case SDL_EVENT_JOYSTICK_HAT_MOTION:
 		if (event->jhat.value)
-			gp_log("  hat h%d = %d", (int)event->jhat.hat, (int)event->jhat.value);
+			gp_log("  joystick hat h%d = %d", (int)event->jhat.hat, (int)event->jhat.value);
 		break;
 	default:
 		break;
@@ -327,6 +432,7 @@ int host_sdl_poll_event(void *event)
 {
 	SDL_Event host_event;
 
+	gamepad_patch_tick();
 	if (!SDL_PollEvent(&host_event))
 		return 0;
 	gamepad_patch_event(&host_event);
