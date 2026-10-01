@@ -14,6 +14,14 @@ import android.os.Bundle;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.ViewGroup;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.os.Handler;
+import android.os.Looper;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 
 import org.libsdl.app.SDLActivity;
 
@@ -48,6 +56,157 @@ public class HaloActivity extends SDLActivity {
         acquireMulticastLock();
         // a new version looked for while the game starts
         Updater.start(this);
+    }
+
+    // ---------- physical pads that SDL does not list
+    //
+    // A generic Bluetooth pad can reach Android as a gamepad (buttons as
+    // KEYCODE_BUTTON_* keys, sticks as joystick motion) while SDL does not
+    // list it as a joystick, so the game would see only a few keys. This
+    // passes such a pad to the game through the touch controls' state (it is
+    // merged there). Pads of Sony, Microsoft and Nintendo are left to SDL.
+    // key_log.txt (next to gamepad_log.txt) records the devices and events.
+
+    private FileWriter keyLog;
+    private int keyLogLines;
+    private long lastMotionLog;
+    private boolean devicesListed;
+
+    private void padLog(String line) {
+        try {
+            if (keyLog == null) {
+                File dir = getExternalFilesDir(null);
+                if (dir == null) return;
+                keyLog = new FileWriter(new File(dir, "key_log.txt"), false);
+                keyLog.write("key bridge v1\n");
+            }
+            if (keyLogLines >= 800) return;
+            keyLog.write(line + "\n");
+            keyLog.flush();
+            keyLogLines++;
+        } catch (IOException e) {
+            // the log is optional
+        }
+    }
+
+    private void listInputDevices(String when) {
+        padLog("--- android input devices (" + when + ") ---");
+        for (int id : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(id);
+            if (device == null) continue;
+            padLog("device " + id + " \"" + device.getName() + "\" sources=0x"
+                + Integer.toHexString(device.getSources()) + " vendor=0x" + Integer.toHexString(device.getVendorId())
+                + " product=0x" + Integer.toHexString(device.getProductId()));
+        }
+    }
+
+    /** a pad that SDL handles by itself (Sony, Microsoft, Nintendo) */
+    private static boolean sdlPad(InputDevice device) {
+        int vendor = device.getVendorId();
+        return vendor == 0x054c || vendor == 0x045e || vendor == 0x057e;
+    }
+
+    /** the SDL gamepad button number of an Android key, or -1 */
+    private static int padBit(int keyCode, boolean hasPadSource) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_A: return 0;
+            case KeyEvent.KEYCODE_BUTTON_B: return 1;
+            case KeyEvent.KEYCODE_BUTTON_X: return 2;
+            case KeyEvent.KEYCODE_BUTTON_Y: return 3;
+            case KeyEvent.KEYCODE_BUTTON_SELECT: return 4;
+            case KeyEvent.KEYCODE_BUTTON_START: return 6;
+            case KeyEvent.KEYCODE_BUTTON_THUMBL: return 7;
+            case KeyEvent.KEYCODE_BUTTON_THUMBR: return 8;
+            case KeyEvent.KEYCODE_BUTTON_L1: return 9;
+            case KeyEvent.KEYCODE_BUTTON_R1: return 10;
+            default: break;
+        }
+        if (hasPadSource) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP: return 11;
+                case KeyEvent.KEYCODE_DPAD_DOWN: return 12;
+                case KeyEvent.KEYCODE_DPAD_LEFT: return 13;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: return 14;
+                default: break;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        InputDevice device = event.getDevice();
+        if (event.getRepeatCount() == 0) {
+            padLog("key " + (event.getAction() == KeyEvent.ACTION_DOWN ? "DOWN " : "UP ")
+                + KeyEvent.keyCodeToString(event.getKeyCode()) + " from \""
+                + (device == null ? "?" : device.getName()) + "\" sources=0x"
+                + Integer.toHexString(event.getSource()));
+        }
+        if (touchControls != null && device != null && !sdlPad(device)) {
+            int sources = device.getSources();
+            boolean hasPadSource = (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+            boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+            int code = event.getKeyCode();
+            int bit = padBit(code, hasPadSource);
+            if (bit >= 0) {
+                touchControls.setPadButton(bit, down);
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_BUTTON_L2) {
+                touchControls.setPadTrigger(0, down);
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_BUTTON_R2) {
+                touchControls.setPadTrigger(1, down);
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private static int axisValue(float value) {
+        // a small dead zone: a generic pad's stick rarely rests at exactly 0
+        if (Math.abs(value) < 0.1f) return 0;
+        return Math.round(Math.max(-1f, Math.min(1f, value)) * 32767f);
+    }
+
+    private static float stronger(float a, float b) {
+        return Math.abs(b) > Math.abs(a) ? b : a;
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        InputDevice device = event.getDevice();
+        if (device != null && (event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                && event.getAction() == MotionEvent.ACTION_MOVE) {
+            long now = System.currentTimeMillis();
+            float lx = event.getAxisValue(MotionEvent.AXIS_X), ly = event.getAxisValue(MotionEvent.AXIS_Y);
+            float rx = stronger(event.getAxisValue(MotionEvent.AXIS_Z), event.getAxisValue(MotionEvent.AXIS_RX));
+            float ry = stronger(event.getAxisValue(MotionEvent.AXIS_RZ), event.getAxisValue(MotionEvent.AXIS_RY));
+            float lt = stronger(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE));
+            float rt = stronger(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS));
+            float hx = event.getAxisValue(MotionEvent.AXIS_HAT_X), hy = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            if (now - lastMotionLog >= 250
+                    && (Math.abs(lx) > 0.5f || Math.abs(ly) > 0.5f || Math.abs(rx) > 0.5f || Math.abs(ry) > 0.5f
+                        || Math.abs(lt) > 0.5f || Math.abs(rt) > 0.5f || hx != 0 || hy != 0)) {
+                lastMotionLog = now;
+                padLog(String.format(java.util.Locale.US,
+                    "motion from \"%s\" X=%.2f Y=%.2f Z=%.2f RZ=%.2f RX=%.2f RY=%.2f LT=%.2f RT=%.2f BRAKE=%.2f GAS=%.2f HAT=%.0f,%.0f",
+                    device.getName(), lx, ly, event.getAxisValue(MotionEvent.AXIS_Z),
+                    event.getAxisValue(MotionEvent.AXIS_RZ), event.getAxisValue(MotionEvent.AXIS_RX),
+                    event.getAxisValue(MotionEvent.AXIS_RY), event.getAxisValue(MotionEvent.AXIS_LTRIGGER),
+                    event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE),
+                    event.getAxisValue(MotionEvent.AXIS_GAS), hx, hy));
+            }
+            if (touchControls != null && !sdlPad(device)) {
+                touchControls.setPadAxes(axisValue(lx), axisValue(ly), axisValue(rx), axisValue(ry),
+                    axisValue(lt), axisValue(rt));
+                touchControls.setPadDpad(hy < -0.5f, hy > 0.5f, hx < -0.5f, hx > 0.5f);
+                return true;
+            }
+        }
+        return super.dispatchGenericMotionEvent(event);
     }
 
     /** SAF lets the player choose a folder and filename without storage permissions. */
@@ -139,6 +298,11 @@ public class HaloActivity extends SDLActivity {
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
+        if (hasFocus && !devicesListed) {
+            devicesListed = true;
+            listInputDevices("start");
+            new Handler(Looper.getMainLooper()).postDelayed(() -> listInputDevices("after 15 s"), 15000);
+        }
         if (touchControls != null) {
             if (hasFocus) touchControls.startDeviceInput();
             else touchControls.stopDeviceInput();
