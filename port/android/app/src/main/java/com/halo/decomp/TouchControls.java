@@ -114,6 +114,12 @@ public final class TouchControls extends View implements SensorEventListener {
     private static native void nativeState(int lx, int ly, int rx, int ry,
                                           int lt, int rt, int buttons);
 
+    // A physical pad that Android reports as keys and motion events but SDL
+    // does not list (HaloActivity.dispatchKeyEvent): merged with the touch state.
+    private int padBits;
+    private final int[] padAxes = new int[6];
+    private final int[] padTriggers = new int[2];
+
     public TouchControls(Context context) {
         super(context);
         sensors = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -191,7 +197,7 @@ public final class TouchControls extends View implements SensorEventListener {
             nativeState(0, 0, 0, 0, 0, 0, 0);
             return;
         }
-        int bits = 0;
+        int bits = padBits;
         axes[4] = axes[5] = 0;
         for (int i = 0; i < owners.size(); i++) {
             int control = owners.valueAt(i);
@@ -200,7 +206,43 @@ public final class TouchControls extends View implements SensorEventListener {
             if (b.bit >= 0) bits |= 1 << b.bit;
             if (b.trigger >= 0) axes[b.trigger] = 32767;
         }
-        nativeState(axes[0], axes[1], axes[2], axes[3], axes[4], axes[5], bits);
+        nativeState(strongest(axes[0], padAxes[0]), strongest(axes[1], padAxes[1]),
+                strongest(axes[2], padAxes[2]), strongest(axes[3], padAxes[3]),
+                strongest(axes[4], Math.max(padAxes[4], padTriggers[0])),
+                strongest(axes[5], Math.max(padAxes[5], padTriggers[1])), bits);
+    }
+
+    private static int strongest(int touch, int pad) {
+        return Math.abs(pad) > Math.abs(touch) ? pad : touch;
+    }
+
+    /** a button of the physical pad, as an SDL gamepad button number */
+    public void setPadButton(int bit, boolean down) {
+        if (bit < 0 || bit > 30) return;
+        if (down) padBits |= 1 << bit; else padBits &= ~(1 << bit);
+        publish();
+    }
+
+    /** a trigger of the physical pad that arrives as a key: 0 left, 1 right */
+    public void setPadTrigger(int index, boolean down) {
+        if (index < 0 || index > 1) return;
+        padTriggers[index] = down ? 32767 : 0;
+        publish();
+    }
+
+    /** the sticks and trigger axes of the physical pad, as SDL axes (-32768..32767) */
+    public void setPadAxes(int lx, int ly, int rx, int ry, int lt, int rt) {
+        padAxes[0] = lx; padAxes[1] = ly; padAxes[2] = rx; padAxes[3] = ry;
+        padAxes[4] = Math.max(0, lt); padAxes[5] = Math.max(0, rt);
+        publish();
+    }
+
+    /** the d-pad hat of the physical pad: the four SDL d-pad buttons (11 up, 12 down, 13 left, 14 right) */
+    public void setPadDpad(boolean up, boolean down, boolean left, boolean right) {
+        int mask = (1 << 11) | (1 << 12) | (1 << 13) | (1 << 14);
+        padBits = (padBits & ~mask) | (up ? 1 << 11 : 0) | (down ? 1 << 12 : 0)
+                | (left ? 1 << 13 : 0) | (right ? 1 << 14 : 0);
+        publish();
     }
 
     private boolean held(int control) {
@@ -380,6 +422,7 @@ public final class TouchControls extends View implements SensorEventListener {
 
     public void stopDeviceInput() {
         deviceInputActive = false; removeCallbacks(rumblePoll);
+        padBits = 0; java.util.Arrays.fill(padAxes, 0); java.util.Arrays.fill(padTriggers, 0);
         updateSensors(); cancelRumble(); reset();
     }
 
