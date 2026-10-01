@@ -15,6 +15,9 @@ so the audio callback is handed to a thread that has one.
 
 #include <SDL3/SDL.h>
 #include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define HANDLE_COUNT 256
@@ -83,8 +86,165 @@ static void *handle_get(uint32_t handle, int type)
 
 /* ---------- general */
 
+/* ---------- gamepad compatibility (generic controllers)
+
+SDL lists a controller to the game (SDL_GetGamepads) only when it has a
+mapping. A generic Bluetooth pad without one is a bare joystick, so it is
+ignored. This block:
+  1. loads gamecontrollerdb.txt from the app's external folder, so mappings
+     can be added without rebuilding;
+  2. gives a joystick that looks like a real pad (8+ buttons, 4+ axes) a
+     fallback mapping, then announces it as a gamepad;
+  3. writes gamepad_log.txt in the same folder (name, VID:PID, GUID, buttons,
+     axes, and the buttons pressed), to get the exact mapping without adb. */
+
+#define GP_LOG_MAX_LINES 600
+
+static FILE *gp_log_file;
+static int gp_log_lines;
+
+static void gp_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
+
+static void gp_log(const char *format, ...)
+{
+	char line[400];
+	va_list arguments;
+
+	va_start(arguments, format);
+	vsnprintf(line, sizeof(line), format, arguments);
+	va_end(arguments);
+	host_logf(HOST_LOG_INFO, "gamepad: %s", line);
+	if (gp_log_file && gp_log_lines < GP_LOG_MAX_LINES)
+	{
+		fprintf(gp_log_file, "%s\n", line);
+		fflush(gp_log_file);
+		gp_log_lines++;
+	}
+}
+
+/* the usual Android layout: buttons in the order of SDL's gamepad buttons,
+the d-pad as a hat, sticks on axes 0-3 and triggers on axes 4 and 5. A guess
+for an unknown pad: gamepad_log.txt has what the pad really sends */
+static const char gp_fallback_body[] =
+	"a:b0,b:b1,x:b2,y:b3,back:b4,guide:b5,start:b6,"
+	"leftstick:b7,rightstick:b8,leftshoulder:b9,rightshoulder:b10,"
+	"dpup:h0.1,dpright:h0.2,dpdown:h0.4,dpleft:h0.8,"
+	"leftx:a0,lefty:a1,rightx:a2,righty:a3,"
+	"lefttrigger:a4,righttrigger:a5,"
+	"platform:Android,";
+
+static void gamepad_patch_before_init(void)
+{
+	const char *external = SDL_GetAndroidExternalStoragePath();
+	char path[600];
+	FILE *file;
+
+	if (!external)
+		return;
+	snprintf(path, sizeof(path), "%s/gamepad_log.txt", external);
+	gp_log_file = fopen(path, "w");
+	snprintf(path, sizeof(path), "%s/gamecontrollerdb.txt", external);
+	file = fopen(path, "r");
+	if (file)
+	{
+		fclose(file);
+		/* read by SDL while it starts, so a pad already connected is covered */
+		SDL_SetHint("SDL_GAMECONTROLLERCONFIG_FILE", path);
+		gp_log("mapping file: %s", path);
+	}
+	else
+		gp_log("no mapping file at %s", path);
+}
+
+static void gamepad_patch_describe(SDL_JoystickID id, int *buttons, int *axes)
+{
+	char guid[64];
+	const char *name = SDL_GetJoystickNameForID(id);
+	SDL_Joystick *joystick;
+
+	*buttons = 0;
+	*axes = 0;
+	SDL_GUIDToString(SDL_GetJoystickGUIDForID(id), guid, (int)sizeof(guid));
+	gp_log("joystick %u \"%s\" %04x:%04x guid=%s gamepad=%d", (unsigned)id, name ? name : "?",
+		(unsigned)SDL_GetJoystickVendorForID(id), (unsigned)SDL_GetJoystickProductForID(id), guid,
+		(int)SDL_IsGamepad(id));
+	joystick = SDL_OpenJoystick(id);
+	if (joystick)
+	{
+		*buttons = SDL_GetNumJoystickButtons(joystick);
+		*axes = SDL_GetNumJoystickAxes(joystick);
+		gp_log("  buttons=%d axes=%d hats=%d", *buttons, *axes, SDL_GetNumJoystickHats(joystick));
+		SDL_CloseJoystick(joystick);
+	}
+}
+
+static void gamepad_patch_fallback(SDL_JoystickID id)
+{
+	char guid[64], name[96], mapping[900];
+	const char *source = SDL_GetJoystickNameForID(id);
+	size_t index;
+
+	SDL_snprintf(name, sizeof(name), "%s", source ? source : "Generic Gamepad");
+	for (index = 0; name[index]; index++)
+	{
+		if (name[index] == ',')
+			name[index] = ' ';
+	}
+	SDL_GUIDToString(SDL_GetJoystickGUIDForID(id), guid, (int)sizeof(guid));
+	SDL_snprintf(mapping, sizeof(mapping), "%s,%s,%s", guid, name, gp_fallback_body);
+	if (SDL_AddGamepadMapping(mapping) < 0)
+	{
+		gp_log("fallback mapping failed: %s", SDL_GetError());
+		return;
+	}
+	gp_log("fallback mapping applied to %u", (unsigned)id);
+	if (SDL_IsGamepad(id))
+	{
+		/* SDL does not announce a gamepad whose mapping came late */
+		SDL_Event announce;
+
+		SDL_zero(announce);
+		announce.type = SDL_EVENT_GAMEPAD_ADDED;
+		announce.gdevice.which = id;
+		SDL_PushEvent(&announce);
+	}
+}
+
+static void gamepad_patch_event(const SDL_Event *event)
+{
+	switch (event->type)
+	{
+	case SDL_EVENT_JOYSTICK_ADDED:
+	{
+		SDL_JoystickID id = event->jdevice.which;
+		int buttons, axes;
+
+		gamepad_patch_describe(id, &buttons, &axes);
+		/* not the phone's key devices, nor the emulator's keyboard */
+		if (!SDL_IsGamepad(id) && !SDL_IsJoystickVirtual(id) && buttons >= 8 && axes >= 4)
+			gamepad_patch_fallback(id);
+		break;
+	}
+	case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+		gp_log("  button b%d", (int)event->jbutton.button);
+		break;
+	case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+		if (abs((int)event->jaxis.value) > 16000)
+			gp_log("  axis a%d = %d", (int)event->jaxis.axis, (int)event->jaxis.value);
+		break;
+	case SDL_EVENT_JOYSTICK_HAT_MOTION:
+		if (event->jhat.value)
+			gp_log("  hat h%d = %d", (int)event->jhat.hat, (int)event->jhat.value);
+		break;
+	default:
+		break;
+	}
+}
+
 int host_sdl_init(uint32_t flags)
 {
+	if (flags & SDL_INIT_GAMEPAD)
+		gamepad_patch_before_init();
 	return SDL_Init((SDL_InitFlags)flags);
 }
 
@@ -169,6 +329,7 @@ int host_sdl_poll_event(void *event)
 
 	if (!SDL_PollEvent(&host_event))
 		return 0;
+	gamepad_patch_event(&host_event);
 	/* the layouts agree except for the pointers of text, drop and user
 	events, which the guest does not read */
 	memcpy(event, &host_event, sizeof(host_event));
